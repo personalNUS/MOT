@@ -1,11 +1,11 @@
-from concurrent.futures import process
 import cv2
+import numpy as np
 import tensorflow as tf
 
 IMG_DIM = (416, 416)
 CONFIDENCE_THRESHOLD = 0.5
 
-class Model:
+class ObjectDetector:
    @staticmethod
    def loadModelFromYaml():
       with open('model/yolov5s.yaml') as yaml_file:
@@ -29,16 +29,20 @@ class Model:
       return inp_tensor
 
    @staticmethod
-   def drawBoundingBox(coords):
-      print()
+   def getBoundingBox(x_factor, y_factor, x, y, w, h):
+      left = int((x - 0.5 * w) * x_factor)
+      top = int((y - 0.5 * h) * y_factor)
+      width = int(w * x_factor)
+      height = int(h * y_factor)
+
+      return np.array([left, top, width, height])
 
    @staticmethod
    def predictOnLocalImg(od_model, imgFilePath):
       img = cv2.imread(imgFilePath)
-      inp_tensor = Model.processImg(img) 
+      inp_tensor = ObjectDetector.processImg(img) 
 
       preds = od_model.predict(inp_tensor)[0]
-      class_ids = []
       confidences = []
       boxes = []
 
@@ -53,5 +57,13 @@ class Model:
          confidence = row[4]
 
          if confidence >= CONFIDENCE_THRESHOLD:
-            scores = row[5:]
+            confidences.append(confidence)
+            boxes.append(ObjectDetector.getBoundingBox(x, y, row[0].item(), row[1].item(), row[2].item(), row[3].item()))           
 
+      for i in range (0, len(boxes)):
+         box = boxes[i]
+         confidence = confidences[i]
+
+         cv2.rectangle(img, box)
+         cv2.rectangle(img, (box[0], box[1] - 20), (box[0] + box[2], box[1]))
+         cv2.putText(img, f"Person (Confidence: {confidence})", (box[0] + 5, box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0))
